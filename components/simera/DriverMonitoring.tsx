@@ -21,7 +21,11 @@ import {
   whatsappHref,
   type Incident,
 } from "@/lib/contexts/SimeraDataContext";
-import { CARD_LABELS, type DriverCardId } from "@/lib/simera/driverUi";
+import {
+  CARD_LABELS,
+  compareIncidentsByDurationDesc,
+  type DriverCardId,
+} from "@/lib/simera/driverUi";
 import {
   formatAppTimeOnly,
   formatTelemetryInstantDisplay,
@@ -122,17 +126,17 @@ export function DriverMonitoring() {
     setFilter((cur) => (cur === next ? "all" : next));
   };
 
-  // Sort: active first by time desc, then resolved by time desc
+  // Active first, then resolved; longest duration first (all types together)
   const ordered = useMemo(() => {
-    const activeFirst = [...incidents].sort((a, b) => {
-      const aRes = isResolved(a.id) ? 1 : 0;
-      const bRes = isResolved(b.id) ? 1 : 0;
-      if (aRes !== bRes) return aRes - bRes;
-      const at = a.violationTimeIso ? new Date(a.violationTimeIso).getTime() : 0;
-      const bt = b.violationTimeIso ? new Date(b.violationTimeIso).getTime() : 0;
-      return bt - at;
-    });
-    return activeFirst;
+    const active: Incident[] = [];
+    const resolved: Incident[] = [];
+    for (const inc of incidents) {
+      (isResolved(inc.id) ? resolved : active).push(inc);
+    }
+    return [
+      ...[...active].sort(compareIncidentsByDurationDesc),
+      ...[...resolved].sort(compareIncidentsByDurationDesc),
+    ];
   }, [incidents, isResolved]);
 
   /** Single source of truth for both the count and the rendered list. */

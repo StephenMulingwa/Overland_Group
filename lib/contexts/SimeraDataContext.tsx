@@ -119,56 +119,55 @@ type SimeraData = {
 
 const Ctx = createContext<SimeraData | null>(null);
 
+function remainingSecFromCacheAt(cacheAt: number): number {
+  return Math.max(
+    REFRESH_PERIOD_SEC - Math.floor((Date.now() - cacheAt) / 1000),
+    0,
+  );
+}
+
 export function SimeraDataProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cachedFleet = readCache<FleetPayload>("fleet");
-  const cachedDriver = readCache<DriverPayload>("driver");
-  const cachedMap = readCache<{ units: MapUnit[] }>("map");
-
-  const [fleet, setFleet] = useState<FleetPayload | null>(
-    cachedFleet?.payload ?? null,
-  );
-  const [driver, setDriver] = useState<DriverPayload | null>(
-    cachedDriver?.payload ?? null,
-  );
-  const [mapUnits, setMapUnits] = useState<MapUnit[]>(
-    cachedMap?.payload?.units ?? [],
-  );
+  const [fleet, setFleet] = useState<FleetPayload | null>(null);
+  const [driver, setDriver] = useState<DriverPayload | null>(null);
+  const [mapUnits, setMapUnits] = useState<MapUnit[]>([]);
   const [fleetError, setFleetError] = useState<string | null>(null);
   const [driverError, setDriverError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const hasAnyCache = Boolean(cachedFleet || cachedDriver || cachedMap);
-  const [firstLoadDone, setFirstLoadDone] = useState(hasAnyCache);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(
-    hasAnyCache
-      ? Math.max(
-          cachedFleet?.at ?? 0,
-          cachedDriver?.at ?? 0,
-          cachedMap?.at ?? 0,
-        )
-      : null,
-  );
-  const initialRemaining = hasAnyCache
-    ? Math.max(
-        REFRESH_PERIOD_SEC -
-          Math.floor(
-            (Date.now() -
-              Math.max(
-                cachedFleet?.at ?? 0,
-                cachedDriver?.at ?? 0,
-                cachedMap?.at ?? 0,
-              )) /
-              1000,
-          ),
-        0,
-      )
-    : REFRESH_PERIOD_SEC;
-  const [remainingSec, setRemainingSec] = useState(initialRemaining);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+  const [remainingSec, setRemainingSec] = useState(REFRESH_PERIOD_SEC);
   const inflight = useRef(false);
+  const skipInitialFetchRef = useRef(false);
+
+  /** Hydrate from sessionStorage after mount — avoids SSR/client mismatch. */
+  useEffect(() => {
+    const cachedFleet = readCache<FleetPayload>("fleet");
+    const cachedDriver = readCache<DriverPayload>("driver");
+    const cachedMap = readCache<{ units: MapUnit[] }>("map");
+    if (!cachedFleet && !cachedDriver && !cachedMap) return;
+
+    if (cachedFleet) setFleet(cachedFleet.payload);
+    if (cachedDriver) setDriver(cachedDriver.payload);
+    if (cachedMap) setMapUnits(cachedMap.payload.units ?? []);
+
+    const cacheAt = Math.max(
+      cachedFleet?.at ?? 0,
+      cachedDriver?.at ?? 0,
+      cachedMap?.at ?? 0,
+    );
+    setLastUpdatedAt(cacheAt);
+    setFirstLoadDone(true);
+    setRemainingSec(remainingSecFromCacheAt(cacheAt));
+
+    if (Date.now() - cacheAt < SESSION_TTL_MS) {
+      skipInitialFetchRef.current = true;
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     if (inflight.current) return;
@@ -276,11 +275,8 @@ export function SimeraDataProvider({
     // Skip the initial fetch when sessionStorage already has fresh data
     // (e.g. just hydrated after login warmup). The 5-min interval below
     // will still trigger periodic refreshes.
-    if (
-      hasAnyCache &&
-      lastUpdatedAt &&
-      Date.now() - lastUpdatedAt < SESSION_TTL_MS
-    ) {
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false;
       return;
     }
     void refresh();

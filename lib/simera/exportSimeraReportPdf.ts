@@ -122,14 +122,14 @@ function drawSummary(
     const item = summary[i]!;
     const x = PAGE_MARGIN + i * (boxW + gap);
 
-    doc.setFillColor(255, 247, 247);
-    doc.setDrawColor(254, 202, 202);
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(184, 50, 0);
     doc.setLineWidth(0.7);
     doc.roundedRect(x, startY, boxW, boxH, 6, 6, "FD");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(127, 29, 29);
+    doc.setTextColor(184, 50, 0);
     doc.text(item.label.toUpperCase(), x + 12, startY + 16, {
       maxWidth: boxW - 24,
     });
@@ -175,7 +175,7 @@ function drawFooter(doc: jsPDF) {
   const pageCount = doc.getNumberOfPages();
   for (let p = 1; p <= pageCount; p += 1) {
     doc.setPage(p);
-    doc.setDrawColor(252, 165, 165);
+    doc.setDrawColor(184, 50, 0);
     doc.setLineWidth(0.5);
     doc.line(
       PAGE_MARGIN,
@@ -233,7 +233,7 @@ export async function exportSimeraReportPdf(
       }
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.setTextColor(122, 13, 24);
+      doc.setTextColor(184, 50, 0);
       doc.text(section.heading, PAGE_MARGIN, cursorY + 4);
       cursorY += 14;
     }

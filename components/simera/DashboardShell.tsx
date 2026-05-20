@@ -18,7 +18,7 @@ import {
   formatCountdown,
   useSimeraData,
 } from "@/lib/contexts/SimeraDataContext";
-import { formatEatWallDateTime, formatAppTimeOnly } from "@/lib/simera/appTime";
+import { formatEatWallTimeOnly, formatAppTimeOnly } from "@/lib/simera/appTime";
 import { HEADER_GRADIENT, SIDEBAR_GRADIENT } from "@/lib/brand";
 
 type TabId = "fleet" | "driver" | "evaluation" | "map" | "reports" | "admin";
@@ -67,6 +67,7 @@ export function DashboardShell({
   const activeTab = tabFromPath(pathname);
   const [hover, setHover] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [clock, setClock] = useState("");
 
   const { remainingSec, loading, refresh, lastUpdatedAt, firstLoadDone } =
@@ -85,8 +86,9 @@ export function DashboardShell({
   }, [loadMe]);
 
   useEffect(() => {
+    setMounted(true);
     const tick = () => {
-      setClock(formatEatWallDateTime(Date.now()));
+      setClock(formatEatWallTimeOnly(Date.now()));
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -142,17 +144,22 @@ export function DashboardShell({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <span className="rounded-md border border-white/30 bg-white/15 px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide text-white">
-            EAT <span className="text-yellow-300">{clock}</span>
+          <span
+            className="rounded-md border border-white/30 bg-white/15 px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide text-white"
+            suppressHydrationWarning
+          >
+            EAT{" "}
+            <span className="text-yellow-300">{mounted ? clock : "—"}</span>
           </span>
 
           <span
-            className="flex items-center gap-2 rounded-full border border-white/40 bg-emerald-500/90 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm"
+            className="flex items-center gap-1.5 rounded-full border border-white/40 bg-emerald-500/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm"
             title={
-              lastUpdatedAt
+              mounted && lastUpdatedAt
                 ? `Updated ${formatAppTimeOnly(lastUpdatedAt)}`
                 : "Live"
             }
+            suppressHydrationWarning
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
@@ -161,10 +168,13 @@ export function DashboardShell({
             Live
           </span>
 
-          <span className="hidden items-center gap-2 rounded-md border border-white/30 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white sm:inline-flex">
+          <span className="hidden items-center gap-1.5 rounded-md border border-white/30 bg-white/10 px-2 py-1 text-xs font-semibold text-white sm:inline-flex">
             <span className="text-white/90">Refresh in</span>
-            <span className="font-mono text-yellow-300">
-              {formatCountdown(remainingSec)}
+            <span
+              className="font-mono text-[11px] tabular-nums text-yellow-300"
+              suppressHydrationWarning
+            >
+              {mounted ? formatCountdown(remainingSec) : "5:00"}
             </span>
           </span>
 
@@ -172,7 +182,7 @@ export function DashboardShell({
             type="button"
             onClick={() => void refresh()}
             disabled={loading || !firstLoadDone}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/30 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-white/20 disabled:opacity-60"
+            className="inline-flex items-center gap-1 rounded-md border border-white/30 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-white/20 disabled:opacity-60"
             title="Refresh now"
           >
             <RefreshCw
@@ -184,7 +194,7 @@ export function DashboardShell({
           </button>
 
           {me && (
-            <span className="hidden max-w-[140px] truncate rounded-md border border-white/30 bg-white/10 px-2 py-1 text-xs font-semibold text-white lg:inline">
+            <span className="hidden max-w-[160px] truncate rounded-md border border-white/30 bg-white/10 px-2 py-1 text-xs font-semibold text-white lg:inline">
               {me.name}
             </span>
           )}

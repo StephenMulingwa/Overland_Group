@@ -34,6 +34,17 @@ import {
 } from "@/lib/simera/appTime";
 import { CARD_LABELS, type DriverCardId } from "@/lib/simera/driverUi";
 import { googleMapsPlaceUrl } from "@/lib/simera/parsers";
+import { resolveDriverDisplay } from "@/lib/driverPhones";
+
+/** Shared field label style (dark, readable). */
+const FIELD_LABEL =
+  "text-xs font-semibold uppercase tracking-wide text-zinc-900";
+
+function splitDateTimeLabel(display: string): { date: string; time: string } | null {
+  const m = /^(\d{2}\/\d{2}\/\d{4}),\s*(.+)$/.exec(display.trim());
+  if (!m) return null;
+  return { date: m[1]!, time: m[2]! };
+}
 
 const INCIDENT_CARD_ORDER: DriverCardId[] = [
   "overspeeding",
@@ -298,12 +309,27 @@ export function VehicleEvaluation() {
     ? Object.keys(summaryTable.rows[0])
     : [];
   const summaryRows = summaryTable?.rows ?? [];
+  const lastMessageDisplay = fleetRow?.lastMessageTime
+    ? formatTelemetryInstantDisplay(null, fleetRow.lastMessageTime)
+    : "—";
+
+  const driverDisplay = useMemo(() => {
+    const raw = fleetRow?.driver?.trim();
+    if (!displayVehicle && !raw) return "—";
+    return resolveDriverDisplay({
+      registration: displayVehicle || selected,
+      driverNameRaw: raw || null,
+    }).displayName;
+  }, [fleetRow?.driver, displayVehicle, selected]);
+
   const metrics = [
     {
       label: "Last Message",
-      value: fleetRow?.lastMessageTime
-        ? formatTelemetryInstantDisplay(null, fleetRow.lastMessageTime)
-        : "—",
+      value: lastMessageDisplay,
+      datetimeParts:
+        lastMessageDisplay !== "—"
+          ? splitDateTimeLabel(lastMessageDisplay)
+          : null,
       icon: Clock3,
     },
     {
@@ -331,11 +357,7 @@ export function VehicleEvaluation() {
     );
     const locationDriverBody = [
       ["Last location", fleetRow?.location?.trim() || "—"],
-      ["Driver", fleetRow?.driver?.trim() || "—"],
-      [
-        "Max. speed",
-        fleetRow?.maxSpeed != null ? `${fleetRow.maxSpeed} km/h` : "—",
-      ],
+      ["Driver", driverDisplay],
     ];
     const liveVehicleBody = [
       ["Vehicle Reg", displayVehicle || "—"],
@@ -537,6 +559,7 @@ export function VehicleEvaluation() {
                 key={item.label}
                 label={item.label}
                 value={item.value}
+                datetimeParts={"datetimeParts" in item ? item.datetimeParts : null}
                 icon={item.icon}
                 highlight={item.highlight}
               />
@@ -548,9 +571,7 @@ export function VehicleEvaluation() {
               <SectionTitle icon={MapPin} title="Location & driver" />
               <dl className="grid gap-4 text-sm sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                    Last location
-                  </dt>
+                  <dt className={FIELD_LABEL}>Last location</dt>
                   <dd className="mt-1 font-medium leading-6 text-zinc-900">
                     {fleetRow?.location?.trim() ? (
                       mapsHref ? (
@@ -572,20 +593,10 @@ export function VehicleEvaluation() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                    Driver
-                  </dt>
-                  <dd className="mt-1 flex items-center gap-2 font-medium text-zinc-900">
-                    <User className="h-4 w-4 text-zinc-400" />
-                    {fleetRow?.driver?.trim() || "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                    Max. speed
-                  </dt>
-                  <dd className="mt-1 font-mono font-medium tabular-nums text-zinc-900">
-                    {fleetRow?.maxSpeed != null ? `${fleetRow.maxSpeed} km/h` : "—"}
+                  <dt className={FIELD_LABEL}>Driver</dt>
+                  <dd className="mt-1 flex items-center gap-2 text-sm font-semibold text-zinc-900">
+                    <User className="h-4 w-4 shrink-0 text-zinc-400" />
+                    {driverDisplay}
                   </dd>
                 </div>
               </dl>
@@ -596,25 +607,19 @@ export function VehicleEvaluation() {
               {mapUnit ? (
                 <dl className="grid gap-4 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                      Vehicle Reg
-                    </dt>
-                    <dd className="mt-1 font-mono font-bold text-zinc-900">
+                    <dt className={FIELD_LABEL}>Vehicle Reg</dt>
+                    <dd className="mt-1 font-mono text-sm font-bold text-zinc-900">
                       {displayVehicle}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                      Live speed
-                    </dt>
-                    <dd className="mt-1 font-medium text-zinc-900">
+                    <dt className={FIELD_LABEL}>Live speed</dt>
+                    <dd className="mt-1 text-sm font-semibold text-zinc-900">
                       {mapUnit.speedKmh != null ? `${mapUnit.speedKmh} km/h` : "—"}
                     </dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-                      Coordinates
-                    </dt>
+                    <dt className={FIELD_LABEL}>Coordinates</dt>
                     <dd className="mt-1 space-y-1 font-medium text-zinc-900">
                       <p className="font-mono text-xs text-zinc-700">
                         {mapUnit.lat.toFixed(6)}, {mapUnit.lon.toFixed(6)}
@@ -764,17 +769,19 @@ function SectionTitle({
 function MetricCard({
   label,
   value,
+  datetimeParts,
   icon: Icon,
   highlight,
 }: {
   label: string;
   value: string;
+  datetimeParts?: { date: string; time: string } | null;
   icon: React.ComponentType<{ className?: string }>;
   highlight?: boolean;
 }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border px-4 py-4 shadow-sm transition ${
+      className={`relative overflow-hidden rounded-2xl border px-4 py-3.5 shadow-sm transition ${
         highlight
           ? "border-red-200 bg-gradient-to-br from-red-50 via-white to-rose-50 shadow-red-100/50"
           : "border-zinc-200 bg-gradient-to-br from-white to-zinc-50"
@@ -782,13 +789,22 @@ function MetricCard({
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-600 via-red-500 to-amber-400" />
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-            {label}
-          </p>
-          <p className="mt-3 text-xl font-extrabold leading-tight tabular-nums text-zinc-900">
-            {value}
-          </p>
+        <div className="min-w-0 flex-1">
+          <p className={FIELD_LABEL}>{label}</p>
+          {datetimeParts ? (
+            <div className="mt-2 space-y-0.5">
+              <p className="text-sm font-bold tabular-nums text-zinc-900">
+                {datetimeParts.date}
+              </p>
+              <p className="text-xs font-medium tabular-nums text-zinc-600">
+                {datetimeParts.time}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-lg font-bold leading-tight tabular-nums text-zinc-900">
+              {value}
+            </p>
+          )}
         </div>
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
           <Icon className="h-4 w-4" />

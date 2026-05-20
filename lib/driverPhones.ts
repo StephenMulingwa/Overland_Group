@@ -1,9 +1,15 @@
-const FALLBACK_NAMES = ["Stephen Mulingwa", "Simon Mutua"] as const;
+const FALLBACK_NAMES = ["Fatma Abdul", "Bahati Juma"] as const;
 const PHONES = [
   "+254792162750",
   "+254111224952",
   "+254107600036",
 ] as const;
+
+/** Wialon / legacy names shown as Overland driver labels */
+const DRIVER_DISPLAY_ALIASES: Record<string, string> = {
+  "stephen mulingwa": "Fatma Abdul",
+  "simon mutua": "Bahati Juma",
+};
 
 /** Deterministic phone + display name when driver info is omitted upstream */
 export function resolveDriverDisplay(input: {
@@ -12,9 +18,11 @@ export function resolveDriverDisplay(input: {
 }): { displayName: string; phone: string } {
   const trimmed = (input.driverNameRaw ?? "").trim();
   if (trimmed) {
+    const normalized = trimmed.toLowerCase();
+    const displayName = DRIVER_DISPLAY_ALIASES[normalized] ?? trimmed;
     const idx =
-      simpleHash(input.registration + trimmed) % PHONES.length;
-    return { displayName: trimmed, phone: PHONES[idx]! };
+      simpleHash(input.registration + displayName) % PHONES.length;
+    return { displayName, phone: PHONES[idx]! };
   }
   const h = simpleHash(input.registration);
   return {
